@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+{% load static %}
+<head>
+  <title>Student List</title>
+  <link rel="stylesheet" href="{% static 'style.css' %}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% csrf_token %}
+  <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+<body>
+  <div class="container">
+    <h2>Welcome, {{ request.session.teacher }}</h2>
+
+    <button onclick="showModal()" class="add-student-btn">➕ Add Student</button>
+    <a href="{% url 'logout' %}" class="logout-btn">Logout</a>
+
+    {% if messages %} 
+        <ul class="messages">
+            {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <table border="1" class="student-table">
+      <thead>
+        <tr><th>Name</th><th>Subject</th><th>Marks</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        {% for student in students %}
+        <tr id="student-row-{{ student.id }}"> {# Added an ID to the row for easier targeting #}
+            {# These TDs will hold the text, and JavaScript will swap them with inputs #}
+            <td id="name-{{ student.id }}" data-field="name" class="editable-cell">{{ student.name }}</td>
+            <td id="subject-{{ student.id }}" data-field="subject" class="editable-cell">{{ student.subject }}</td>
+            {# Marks field remains contenteditable #}
+            <td id="marks-{{ student.id }}" data-field="marks" class="editable-cell-marks">{{ student.marks }}</td>
+            <td>
+              <button onclick="makeEditable('{{ student.id }}')" class="edit-btn">🖉 Edit</button>
+              <a href="{% url 'delete' student.id %}" class="delete-btn" 
+                 onclick="return confirm('Are you sure you want to delete {{ student.name }}?');">🗑 Delete</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No students found. Add some!</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Modal Form -->
+    <div id="modal" class="model" style="display: none;">
+      <form action="{% url 'add' %}" method="post" class="modal-content">
+        {% csrf_token %}
+        <h3>Add New Student</h3>
+        <input name="name" type="text" placeholder="Student Name" class="name" required><br>
+        <input name="subject" type="text" placeholder="Subject Name" class="subject" required><br>
+        <input name="marks" type="number" placeholder="Marks" class="marks" required min="0" max="100"><br>
+        <div class="modal-actions">
+          <button type="submit" class="btn-add">Add</button>
+          <button type="button" onclick="hideModal()" class="btn-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Message Box Placeholder (for displayMessageBox in script.js) -->
+    <div id="messageBox" style="display: none;"></div>
+
+    <!-- Inject CSRF token into cookie for JS usage -->
+    <script>
+      document.cookie = `csrftoken={{ csrf_token }}; Path=/; SameSite=Lax`;
+    </script>
+
+    <script src="{% static 'script.js' %}"></script>
+  </div>
+</body>
+</html>
