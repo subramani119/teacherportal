@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html>
 {% load static %}
+
+<script src="{% static 'script.js' %}"></script>
 <head>
     <title>Teacher Portal Login</title>
-    <link rel="stylesheet" href="{% static 'login_style.css' %}">
+    <link rel="stylesheet" href="{% static 'style.css' %}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         /* Additional CSS properties for login.html */
@@ -152,5 +154,7 @@
             </ul>
         {% endif %}
     </div>
+   
+    
 </body>
 </html>

@@ -4,6 +4,8 @@ from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt # Import csrf_exempt
 from django.http import JsonResponse
 import json # Import json for parsing JSON requests
+from django.views.decorators.csrf import csrf_protect
+
 
 from .models import Teacher, Student
 from django.contrib import messages
@@ -32,94 +34,76 @@ def home(request):
     students = Student.objects.all()
     return render(request, 'home.html', {'students': students})
 
-def add_student(request):
-    """
-    Handles adding a new student. Checks for existing student by name and subject.
-    If student exists, it shows an error message and does not add new marks.
-    If student does not exist, a new record is created.
-    """
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
+from .models import Student  # Adjust the import as needed
+
+@csrf_exempt
+def create_or_add_student(request):
     if request.method == 'POST':
-        name = request.POST.get('name')
-        subject = request.POST.get('subject')
-        marks_str = request.POST.get('marks')
-
         try:
-            marks = int(marks_str)
-        except (ValueError, TypeError):
-            messages.error(request, "Marks must be a valid number.")
-            return redirect('home')
+            data = json.loads(request.body)
 
-        
-        existing_student = Student.objects.filter(name=name, subject=subject).first()
+            name = data.get('name', '').strip()
+            subject = data.get('subject', '').strip()
+            marks = int(data.get('marks', 0))
 
-        if existing_student:
-            
-            messages.error(request, f"Student '{name}' with subject '{subject}' already exists.")
-        else:
-            
-            Student.objects.create(name=name, subject=subject, marks=marks)
-            messages.success(request, f"Added new student {name} ({subject}).")
+            if not name or not subject:
+                return JsonResponse({'success': False, 'error': 'Name and subject are required.'}, status=400)
 
-    return redirect('home')
+            try:
+                student = Student.objects.get(name__iexact=name, subject__iexact=subject)
+                student.marks += marks
+                student.save()
+                return JsonResponse({'success': True, 'message': 'Marks added to existing student.'})
+            except Student.DoesNotExist:
+                Student.objects.create(name=name, subject=subject, marks=marks)
+                return JsonResponse({'success': True, 'message': 'New student added.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-def delete_student(request, id):
-    """
-    Deletes a student record by ID.
-    """
-    try:
-        student = Student.objects.get(id=id)
-        student.delete()
-        messages.success(request, f"Student '{student.name}' deleted successfully.")
-    except Student.DoesNotExist:
-        messages.error(request, "Student not found.")
-    return redirect('home')
+    return JsonResponse({'success': False, 'error': 'Invalid request method.'}, status=405)
 
+    
+@csrf_protect
+def deleteStudent(request, id):
+    if request.method == 'POST':
+        try:
+            student = Student.objects.get(id=id)
+            student.delete()
+            return JsonResponse({'status': 'success'})
+        except Student.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Student not found'}, status=404)
+    return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)
 @csrf_exempt 
 def update_student(request, id):
-    """
-    Handles AJAX requests to update a single field (name, subject, or marks) for a student.
-    Expects JSON payload: {"field": "fieldName", "value": "newValue"}
-    """
     if request.method == 'POST':
         try:
-            
             data = json.loads(request.body.decode('utf-8'))
-            field = data.get('field')
-            value = data.get('value')
-
-            # Validate input data
-            if not field or not value:
-                return JsonResponse({'status': 'error', 'message': 'Missing field or value'}, status=400)
-
-            # Find the student by ID
             student = Student.objects.get(id=id)
 
-            # Update the specific field based on the 'field' parameter
-            if field == 'name':
-                student.name = value
-            elif field == 'subject':
-                student.subject = value
-            elif field == 'marks':
+            # Update available fields
+            if 'name' in data:
+                student.name = data['name'].strip()
+            if 'subject' in data:
+                student.subject = data['subject'].strip()
+            if 'marks' in data:
                 try:
-                    student.marks = int(value)
+                    student.marks = int(data['marks'])
                 except ValueError:
                     return JsonResponse({'status': 'error', 'message': 'Marks must be an integer'}, status=400)
-            else:
-                return JsonResponse({'status': 'error', 'message': 'Invalid field specified'}, status=400)
-            
-            student.save() # Save the changes to the database
 
+            student.save()
             return JsonResponse({'status': 'success', 'message': 'Student updated successfully'})
 
         except Student.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': 'Student not found'}, status=404)
         except json.JSONDecodeError:
-            return JsonResponse({'status': 'error', 'message': 'Invalid JSON format in request body'}, status=400)
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON format'}, status=400)
         except Exception as e:
-            # Catch any other unexpected errors
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     
-    # Return 405 Method Not Allowed for non-POST requests
     return JsonResponse({'status': 'error', 'message': 'Only POST method is allowed'}, status=405)
 
 def logout_view(request):
